@@ -154,3 +154,13 @@ h1 b{color:var(--aqua);text-shadow:0 0 18px #00e5d088}
 #ring{stroke-dasharray:326.7;animation:ring 1.2s cubic-bezier(.2,.9,.3,1) both}
 .wk{display:flex;align-items:flex-end;gap:8px;height:104px}
 .wb{flex:1;height:100%
+
+/* ----- PWA + new controls ----- */
+.top>div{display:flex;gap:8px}
+#inst{background:#0b2742cc;border:1px solid var(--aqua);width:40px;height:40px;border-radius:50%;font-size:18px;backdrop-filter:blur(8px)}
+#inst[hidden],#off[hidden]{display:none}
+#off{position:absolute;top:0;left:0;right:0;z-index:1300;background:var(--warn);color:#2a1d00;text-align:center;font-size:12px;font-weight:800;padding:calc(6px + env(safe-area-inset-top)) 10px 6px}
+.fabs{position:absolute;left:16px;bottom:calc(94px + env(safe-area-inset-bottom));z-index:600;display:flex;flex-direction:column;gap:10px}
+.fabs button{width:46px;height:46px;border-radius:50%;border:1px solid var(--ln);background:#0b2742ee;backdrop-filter:blur(8px);font-size:20px;box-shadow:0 4px 14px #0006}
+.fabs button:active{transform:scale(.9)}
+.fabs .sos{background:var(--bad);border-color:var(--bad)}
