@@ -1,7 +1,7 @@
 const M={f:'all',fv:false,add:false,pt:null,
 init(){
   M.map=L.map('map',{zoomControl:false}).setView([-33.9,151.2],10);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© OpenStreetMap © CARTO',maxZoom:19}).addTo(M.map);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap contributors',maxZoom:19}).addTo(M.map);
   M.cl=L.markerClusterGroup({maxClusterRadius:45}).addTo(M.map);
   M.map.on('click',e=>{if(!M.add)return;M.add=false;M.pt=e.latlng;V.newSpot()});
   $('#chips').innerHTML=
