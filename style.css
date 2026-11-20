@@ -44,7 +44,7 @@ h1 b{color:var(--aqua);text-shadow:0 0 18px #00e5d088}
 .scroll::-webkit-scrollbar{display:none}
 
 /* ----- map ----- */
-#map{position:absolute;inset:0}
+#map.dark .leaflet-tile-pane{filter:invert(1) hue-rotate(195deg) brightness(.85) contrast(.95) saturate(.7)}
 .leaflet-container{background:var(--bg);font-family:inherit}
 .leaflet-tile-pane{filter:invert(1) hue-rotate(195deg) brightness(.85) contrast(.95) saturate(.7)} /* delete this line if you use CARTO dark tiles */
 .leaflet-bottom{bottom:86px}
