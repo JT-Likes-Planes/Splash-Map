@@ -1,182 +1,449 @@
-const AV=['🦈','🐙','🐳','🐢'],av=w=>w==='you'?'🐬':AV[w.length%4];
-const J=a=>a.n||1,mine=()=>S.acts.filter(a=>a.who==='you'),spotOf=id=>S.spots.find(x=>x.id==id);
-const best=a=>Math.max(0,...a.map(x=>x.sc));
+const V = {
+  sheet(html) {
+    const el = document.getElementById('sheet');
+    el.innerHTML = `<div class="grab" onclick="V.close()"></div>` + html;
+    el.classList.add('open');
+  },
+  close() {
+    document.getElementById('sheet').classList.remove('open');
+  },
 
-const V={tmr:0,rp:'a',rs:0,n:0,t0:0,eid:0,
+  spot(id) {
+    const sp = S.spot(id);
+    if (!sp) return;
+    const cat = CATS.find(c => c.id === sp.cat) || CATS[0];
+    const fav = S.d.favs.includes(id);
+    const vis = S.d.visited.includes(id);
+    const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${sp.lat},${sp.lng}`;
 
-/* ---------- FEED ---------- */
-feed(){
-  const l=S.acts.filter(a=>!S.fo||a.who==='you'||S.follow.includes(a.who));
-  $('#t-feed').innerHTML=
-   `<div class="seg"><button class="${S.fo?'':'on'}" onclick="S.fo=0;V.feed()">Everyone</button><button class="${S.fo?'on':''}" onclick="S.fo=1;V.feed()">Following</button></div>`+
-   (l.map((a,i)=>{
-    const s=spotOf(a.spot)||{name:'Deleted spot',d:0,type:'chill'},t=T[s.type];
-    return `<article class="card" style="--i:${Math.min(i,8)}">
-     <div class="who"><span class="av">${av(a.who)}</span><div><b>${esc(a.who)}</b><small>${t.e} ${esc(s.name)} · ${ago(a.ts)}</small></div>
-     ${a.who!=='you'?`<button class="mini" onclick="V.follow('${esc(a.who)}')">${S.follow.includes(a.who)?'Following':'Follow'}</button>`:''}</div>
-     ${a.photo?`<img class="ph" src="${esc(a.photo)}" alt="">`:''}
-     <div class="row3"><div><b>${fh(a.h)}</b><small>Height</small></div><div><b>${a.sc.toFixed(1)}</b><small>Splash</small></div><div><b>${J(a)}</b><small>Jumps</small></div></div>
-     <p>${esc(a.note)}</p>
-     <div class="acts"><button class="stoke ${a.on?'on':''}" onclick="V.stoke(${a.id},this)">🤙 <span>${a.k}</span></button><button class="stoke" onclick="V.cm(${a.id})">💬 ${a.cm.length}</button></div></article>`}).join('')
-   ||'<p class="mute">Nothing here yet. Follow some jumpers.</p>');
-},
-follow(w){const i=S.follow.indexOf(w);i<0?S.follow.push(w):S.follow.splice(i,1);save();V.feed()},
-stoke(id,b){
-  const a=S.acts.find(x=>x.id==id);a.on=!a.on;a.k+=a.on?1:-1;save();buzz();
-  b.classList.toggle('on',a.on);b.querySelector('span').textContent=a.k;
-  if(a.on)for(let i=0;i<8;i++){const p=document.createElement('span'),g=i/8*6.28;p.className='p';p.textContent=i%2?'💦':'🌊';p.style.setProperty('--x',Math.cos(g)*46+'px');p.style.setProperty('--y',Math.sin(g)*46+'px');b.appendChild(p);setTimeout(()=>p.remove(),700)}
-},
-cm(id){
-  const a=S.acts.find(x=>x.id==id);
-  sheet(`<h2>Comments</h2>${a.cm.map(c=>`<p class="cmt"><b>${esc(c[0])}</b> ${esc(c[1])}</p>`).join('')||'<p class="mute">Be the first.</p>'}
-   <input id="ci" maxlength="120" placeholder="Say something"><button class="btn" onclick="V.addCm(${id})">Send</button>`);
-},
-addCm(id){const v=$('#ci').value.trim();if(!v)return;S.acts.find(x=>x.id==id).cm.push(['you',v]);save();V.cm(id);V.feed()},
+    this.sheet(`
+      <div class="hd">
+        <div>
+          <small>${cat.ico} ${cat.name.toUpperCase()}</small>
+          <h2>${esc(sp.name)}</h2>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="mini ${fav ? 'on' : ''}" onclick="S.toggleFav('${id}');V.spot('${id}');M.draw()">${fav ? '❤️ Saved' : '🤍 Save'}</button>
+          <button class="mini ${vis ? 'on' : ''}" onclick="S.toggleVisited('${id}');V.spot('${id}');M.draw()">${vis ? '✅ Sent' : 'Sent?'}</button>
+        </div>
+      </div>
 
-/* ---------- RANKS ---------- */
-rank(){
-  const cut=V.rp=='w'?Date.now()-6048e5:0,u={};
-  S.acts.filter(a=>a.ts>=cut&&(!V.rs||a.spot==V.rs)).forEach(a=>{const r=u[a.who]||(u[a.who]={w:a.who,sc:0,n:0});r.sc=Math.max(r.sc,a.sc);r.n+=J(a)});
-  const l=Object.values(u).sort((a,b)=>b.sc-a.sc);
-  $('#t-rank').innerHTML=`<h2>Leaderboard</h2>
-   <div class="seg"><button class="${V.rp=='a'?'on':''}" onclick="V.rp='a';V.rank()">All time</button><button class="${V.rp=='w'?'on':''}" onclick="V.rp='w';V.rank()">This week</button></div>
-   <select onchange="V.rs=+this.value;V.rank()"><option value="0">All spots</option>${S.spots.map(s=>`<option value="${s.id}" ${s.id==V.rs?'selected':''}>${esc(s.name)}</option>`).join('')}</select><div style="height:12px"></div>`+
-   (l.map((r,i)=>`<div class="lb" style="--i:${i}"><span>${['🥇','🥈','🥉'][i]||i+1}</span><span>${av(r.w)} ${esc(r.w)}<br><small>${r.n} jumps</small></span><div class="bar"><u style="width:${r.sc*10}%"></u></div><b>${r.sc.toFixed(1)}</b></div>`).join('')||'<p class="mute">No jumps in this range.</p>');
-},
+      <div class="row3">
+        <div><small>HEIGHT</small><b>${S.fmtH(sp.height)}</b></div>
+        <div><small>DEPTH</small><b>${S.fmtH(sp.depth)}</b></div>
+        <div><small>RATING</small><b>⭐ ${sp.rating}</b></div>
+      </div>
 
-/* ---------- PROFILE ---------- */
-me(){
-  const m=mine(),w0=wk0(),wm=m.filter(a=>a.ts>=w0),wj=nJ(wm),l=lv(),days=[0,0,0,0,0,0,0];
-  wm.forEach(a=>days[(new Date(a.ts).getDay()+6)%7]+=J(a));
-  const sp=new Set(wm.map(a=>a.spot)).size,pbs={};m.forEach(a=>pbs[a.spot]=Math.max(pbs[a.spot]||0,a.sc));
-  const prog=(t,v,x)=>`<small>${t}: ${Math.min(v,x)}/${x}</small><div class="bar"><u style="width:${Math.min(v/x,1)*100}%"></u></div>`;
-  $('#t-me').innerHTML=`
-   <div class="ph2"><div class="av">🐬</div><div><h2>@you</h2><span class="lvl">LV ${l+1} · ${LEVELS[l]}</span></div></div>
-   <h3>XP ${S.xp}</h3>${prog('Next level',S.xp%150,150)}
-   <div class="ringw"><svg width="130" height="130" viewBox="0 0 130 130"><circle cx="65" cy="65" r="52" fill="none" stroke="#06182c" stroke-width="12"/>
-    <circle id="ring" cx="65" cy="65" r="52" fill="none" stroke="var(--aqua)" stroke-width="12" stroke-linecap="round" stroke-dashoffset="${326.7*(1-Math.min(wj/5,1))}" transform="rotate(-90 65 65)"/></svg>
-    <div class="rc"><b>${wj}</b><small>of 5 this week</small></div></div>
-   <div class="row3"><div><b>${nJ(m)}</b><small>Jumps</small></div><div><b>${best(m).toFixed(1)}</b><small>Best</small></div><div><b>🔥${S.streak}</b><small>Day streak</small></div></div>
-   <h3>This week</h3><div class="wk">${days.map((v,i)=>`<div class="wb"><u style="height:${6+v*20}px"></u><small>${'MTWTFSS'[i]}</small></div>`).join('')}</div>
-   <h3>Weekly challenges</h3>${prog('Log 5 jumps (+50 XP)',wj,5)}${prog('Visit 2 spots',sp,2)}
-   <h3>Badges</h3>${BADGES.map(b=>`<span class="bd ${b[2](m)?'on':''}">${b[0]} ${b[1]}</span>`).join('')}
-   <h3>Personal bests</h3>${Object.entries(pbs).map(([id,v])=>`<span class="tg">${esc((spotOf(id)||{name:'?'}).name)}: <b>${v.toFixed(1)}</b></span>`).join('')||'<small>Log a jump to set one</small>'}
-   <h3>Saved spots</h3>${S.fav.map(id=>spotOf(id)).filter(Boolean).map(s=>`<span class="tg" onclick="go('map');V.spot(${s.id})">${T[s.type].e} ${esc(s.name)}</span>`).join('')||'<small>Tap ❤️ on a spot to save it</small>'}`;
-},
+      <div class="wx" id="wx-box">
+        <div><small>LIVE CONDITIONS</small><div style="font-size:13px;margin-top:2px">Fetching weather & wind...</div></div>
+        <span class="wx-badge wx-safe">⏳</span>
+      </div>
 
-/* ---------- SPOT SHEET ---------- */
-spot(id){
-  const s=spotOf(id),t=T[s.type],cr=S.crowd[id],ra=S.rate[id]||0,avg=(((s.vb||4.5)*5+ra)/(ra?6:5)).toFixed(1);
-  const top=Object.values(S.acts.filter(a=>a.spot==id).reduce((o,a)=>{if(!o[a.who]||a.sc>o[a.who].sc)o[a.who]=a;return o},{})).sort((a,b)=>b.sc-a.sc).slice(0,3);
-  const age=Math.round((Date.now()-s.v)/864e5),pb=best(mine().filter(a=>a.spot==id));
-  sheet(`<div class="hd"><h2>${t.e} ${esc(s.name)}</h2><button class="mini" onclick="V.fav(${id})">${S.fav.includes(id)?'❤️':'🤍'}</button></div>
-   <small>${t.n}${here?' · '+dist(here.lat,here.lng,s.lat,s.lng).toFixed(1)+' km away':''}</small>
-   <div class="row3"><div><b>${fh(s.h)}</b><small>Height</small></div><div><b>${fh(s.d)}</b><small>Depth</small></div><div><b>${avg}★</b><small>Vibe</small></div></div>
-   <div class="warn">⚠️ ${esc(s.w||'No warnings yet. Check depth, tide and rocks first.')}</div>
-   ${(s.hz||[]).slice(-2).map(h=>`<div class="warn bad">🚩 ${esc(h.t)} <small>${ago(h.ts)} ago</small></div>`).join('')}
-   <small>${age>90?'⚠️ Stale: ':'✅ '}verified ${age}d ago · <a href="#" style="color:var(--aqua)" onclick="V.ver(${id});return false">Re-verify</a></small>
-   <div class="warn" id="cond" style="border-color:var(--aqua)">Loading conditions…</div>
-   <h3>Crowd</h3><div class="seg">${['Quiet','Okay','Busy'].map(c=>`<button class="${cr&&cr.v==c?'on':''}" onclick="V.crowd(${id},'${c}')">${c}</button>`).join('')}</div>${cr?`<small>Reported ${ago(cr.ts)} ago</small>`:''}
-   <h3>Rate the vibe</h3><div class="stars">${[1,2,3,4,5].map(n=>`<span class="${n<=ra?'on':''}" onclick="V.rate(${id},${n})">★</span>`).join('')}</div>
-   <h3>Amenities</h3><div>${(s.tags||[]).map(i=>`<span class="tg">${AMEN[i]}</span>`).join('')||'<small>None listed</small>'}</div>
-   ${pb?`<h3>Your PB</h3><b>${pb.toFixed(1)} splash</b>`:''}
-   <h3>Top splashes</h3>${top.map((a,i)=>`<div class="lb"><span>${['🥇','🥈','🥉'][i]}</span><span>${av(a.who)} ${esc(a.who)}</span><div class="bar"><u style="width:${a.sc*10}%"></u></div><b>${a.sc.toFixed(1)}</b></div>`).join('')||'<small>Nobody yet</small>'}
-   <button class="btn" onclick="V.record(${id})">🤙 Log a jump</button>
-   <button class="btn ghost" onclick="V.session(${id})">⏱️ Session mode</button>
-   <div class="seg" style="margin-top:10px"><a href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}" target="_blank" rel="noopener">🧭 Directions</a><button onclick="V.share(${id})">🔗 Share</button><button onclick="V.hazard(${id})">🚩 Hazard</button></div>
-   ${s.own?`<div class="seg"><button onclick="V.newSpot(${id})">✏️ Edit</button><button onclick="V.del(${id})">🗑️ Delete</button></div>`:''}
-   <button class="btn ghost" onclick="closeSheet()">Close</button>`);
-  M.map.flyTo([s.lat,s.lng],Math.max(M.map.getZoom(),13),{duration:.7});
-  V.cond(s);
-},
-async cond(s){
-  const el=$('#cond');
-  try{
-    const j=(await(await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${s.lat}&longitude=${s.lng}&current=wave_height,sea_surface_temperature`)).json()).current;
-    el.textContent=j&&j.wave_height!=null?`🌊 Waves ${j.wave_height}m · 🌡️ Water ${j.sea_surface_temperature}°C`:'No marine data for this spot';
-  }catch(e){el.textContent='Conditions unavailable'}
-},
-fav(id){const i=S.fav.indexOf(id);i<0?S.fav.push(id):S.fav.splice(i,1);save();M.draw();V.spot(id)},
-crowd(id,c){S.crowd[id]={v:c,ts:Date.now()};save();V.spot(id)},
-rate(id,n){S.rate[id]=n;save();V.spot(id)},
-ver(id){spotOf(id).v=Date.now();save();V.spot(id)},
-hazard(id){const t=prompt('Describe the hazard');if(t&&t.trim()){const s=spotOf(id);(s.hz=s.hz||[]).push({t:t.trim(),ts:Date.now()});save();V.spot(id)}},
-share(id){const s=spotOf(id),u=`https://maps.google.com/?q=${s.lat},${s.lng}`;navigator.share?navigator.share({title:s.name+' on Splash Map',url:u}).catch(()=>{}):(navigator.clipboard.writeText(s.name+' '+u),toast('Link copied'))},
-del(id){if(!confirm('Delete this spot and its jumps?'))return;S.spots=S.spots.filter(s=>s.id!=id);S.acts=S.acts.filter(a=>a.spot!=id);save();M.draw();closeSheet();V.feed()},
+      <p style="font-size:14px;line-height:1.5;margin:8px 0">${esc(sp.desc)}</p>
 
-/* ---------- ADD / EDIT SPOT ---------- */
-newSpot(id){
-  const s=id?spotOf(id):{name:'',type:'manu',h:3,d:3,w:'',tags:[]};V.eid=id||0;
-  sheet(`<h2>${id?'Edit':'New'} spot</h2>
-   <label>Name</label><input id="nN" maxlength="40" value="${esc(s.name)}">
-   <label>Type</label><select id="nT">${Object.entries(T).map(([k,t])=>`<option value="${k}" ${k==s.type?'selected':''}>${t.e} ${t.n}</option>`).join('')}</select>
-   <label>Jump height (m)</label><input id="nH" type="number" value="${s.h}">
-   <label>Water depth (m)</label><input id="nD" type="number" value="${s.d}">
-   <label>Tide / current warning</label><input id="nW" maxlength="120" value="${esc(s.w)}">
-   <label>Amenities</label>${AMEN.map((a,i)=>`<label class="tg ck"><input type="checkbox" class="am" value="${i}" ${(s.tags||[]).includes(i)?'checked':''}> ${a}</label>`).join('')}
-   <button class="btn" onclick="V.saveSpot()">Save spot</button><button class="btn ghost" onclick="closeSheet()">Cancel</button>`);
-},
-saveSpot(){
-  const n=$('#nN').value.trim();if(!n)return toast('Name it first');
-  const d={name:n,type:$('#nT').value,h:+$('#nH').value,d:+$('#nD').value,w:$('#nW').value,tags:[...document.querySelectorAll('.am:checked')].map(x=>+x.value)};
-  if(V.eid)Object.assign(spotOf(V.eid),d);else S.spots.push({...d,id:Date.now(),lat:M.pt.lat,lng:M.pt.lng,v:Date.now(),own:1,hz:[]});
-  save();M.draw();closeSheet();toast('Saved 📍');
-},
+      <div>${(sp.tags || []).map(t => `<span class="tg">${esc(t)}</span>`).join('')}</div>
 
-/* ---------- LOG A JUMP ---------- */
-record(id){
-  sheet(`<h2>Log a jump</h2>
-   <label>Spot</label><select id="rS">${S.spots.map(s=>`<option value="${s.id}" ${s.id==id?'selected':''}>${esc(s.name)}</option>`).join('')}</select>
-   <label>Height (m): <b id="rHo">5</b></label><input id="rH" type="range" min="1" max="30" value="5" oninput="$('#rHo').textContent=this.value">
-   <label>Splash score: <b id="rCo">7.0</b></label><input id="rC" type="range" min="1" max="10" step=".1" value="7" oninput="$('#rCo').textContent=(+this.value).toFixed(1)">
-   <label>Note</label><input id="rN" maxlength="80" placeholder="How was it?">
-   <label>Photo</label><input id="rF" type="file" accept="image/*">
-   <h3>Safety check</h3>${CHECK.map(c=>`<label class="tg ck"><input type="checkbox" class="sc" onchange="$('#rP').disabled=!!document.querySelector('.sc:not(:checked)')"> ${c}</label>`).join('')}
-   <button class="btn" id="rP" disabled onclick="V.post()">Post splash</button><button class="btn ghost" onclick="closeSheet()">Cancel</button>`);
-},
-img(f){return new Promise(r=>{if(!f)return r('');const i=new Image;i.onerror=()=>r('');i.onload=()=>{const k=Math.min(1,480/i.width),c=document.createElement('canvas');c.width=i.width*k;c.height=i.height*k;c.getContext('2d').drawImage(i,0,0,c.width,c.height);r(c.toDataURL('image/jpeg',.6))};i.src=URL.createObjectURL(f)})},
-async post(){V.log(+$('#rS').value,+$('#rH').value,+$('#rC').value,$('#rN').value.trim(),await V.img($('#rF').files[0]))},
+      ${(sp.hazards || []).length ? `<div class="warn bad">⚠️ <b>Hazards:</b> ${sp.hazards.map(esc).join(' • ')}</div>` : ''}
 
-/* ---------- SESSION MODE ---------- */
-session(id){
-  V.n=0;V.t0=Date.now();
-  sheet(`<h2>Session mode</h2><small>${esc(spotOf(id).name)}</small>
-   <div class="big"><span id="tm">0:00</span></div>
-   <button class="tap" onclick="$('#sn').textContent=++V.n;buzz()">🤙</button>
-   <div class="big" style="font-size:36px"><span id="sn">0</span> jumps</div>
-   <label>Average splash: <b id="sCo">7.0</b></label><input id="sC" type="range" min="1" max="10" step=".1" value="7" oninput="$('#sCo').textContent=(+this.value).toFixed(1)">
-   <button class="btn" onclick="V.endSes(${id})">Finish and post</button><button class="btn ghost" onclick="closeSheet()">Discard</button>`);
-  V.tmr=setInterval(()=>{const s=Math.floor((Date.now()-V.t0)/1e3);$('#tm').textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0')},500);
-},
-endSes(id){
-  if(!V.n)return toast('Tap 🤙 for each jump');
-  V.log(id,spotOf(id).h,+$('#sC').value,`Session: ${V.n} jumps in ${Math.max(1,Math.round((Date.now()-V.t0)/6e4))} min`,'',V.n);
-},
+      <div class="seg" style="margin-top:14px">
+        <a href="${gmaps}" target="_blank" rel="noopener">🧭 Directions</a>
+        <button onclick="V.shareSpot('${id}')">📤 Share</button>
+        <button onclick="V.hazardPrompt('${id}')">⚠️ Hazard</button>
+      </div>
 
-/* ---------- LOG + XP ---------- */
-log(spot,h,sc,note,photo,n=1){
-  const prev=best(mine().filter(a=>a.spot==spot)),pb=prev>0&&sc>prev;let big=pb;
-  let g=10+Math.round(sc*2)+n*4+(pb?25:0)+(h>=10?10:0);
-  const td=new Date().toDateString(),y=new Date(Date.now()-864e5).toDateString();
-  if(S.last!==td){S.streak=S.last===y?S.streak+1:1;S.last=td}
-  S.acts.unshift({id:Date.now(),who:'you',spot:+spot,h,sc,note:note||'Sent it',ts:Date.now(),k:0,cm:[],photo,n});
-  if(nJ(mine().filter(a=>a.ts>=wk0()))>=5&&S.ch!==wk0()){S.ch=wk0();g+=50;big=true;toast('Weekly challenge done! +50 XP 🏆')}
-  else toast('+'+g+' XP 🌊'+(pb?' · new PB!':''));
-  S.xp+=g;save();buzz();if(big)confetti();go('feed');
-},
+      <button class="btn" onclick="V.record('${id}')">🤙 Log jump here</button>
 
-/* ---------- SETTINGS ---------- */
-settings(){
-  sheet(`<h2>Settings</h2>
-   <label>Units</label><div class="seg"><button class="${S.unit=='m'?'on':''}" onclick="V.set('unit','m')">Metres</button><button class="${S.unit=='ft'?'on':''}" onclick="V.set('unit','ft')">Feet</button></div>
-   <label>Haptics</label><div class="seg"><button class="${S.vib?'on':''}" onclick="V.set('vib',1)">On</button><button class="${S.vib?'':'on'}" onclick="V.set('vib',0)">Off</button></div>
-   <label>Accent colour</label><div class="sw">${['#00e5d0','#ff6b3d','#ffc233','#a98bff'].map(c=>`<i style="background:${c}" onclick="V.set('accent','${c}')"></i>`).join('')}</div>
-   <button class="btn ghost" onclick="V.exp()">⬇️ Export data</button>
-   <label class="btn ghost" style="text-align:center">⬆️ Import data<input type="file" accept=".json" hidden onchange="V.imp(this.files[0])"></label>
-   <button class="btn ghost" onclick="if(confirm('Reset everything?')){localStorage.removeItem(KEY);location.reload()}">Reset all data</button>
-   <button class="btn" onclick="closeSheet()">Done</button>`);
-},
-set(k,v){S[k]=v;save();document.documentElement.style.setProperty('--aqua',S.accent);V.settings();V.feed()},
-exp(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:'application/json'}));a.download='splashmap.json';a.click()},
-async imp(f){try{Object.assign(S,JSON.parse(await f.text()));save();location.reload()}catch(e){toast('Not a valid file')}}
+      <h3>Rate &amp; Check-in</h3>
+      <div class="stars" id="r-stars">
+        ${[1,2,3,4,5].map(n => `<span onclick="V.setStar(${n})">★</span>`).join('')}
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <input id="r-txt" placeholder="Depth ok? Water temp? Current?">
+        <button class="mini on" onclick="V.submitRate('${id}')">Post</button>
+      </div>
+
+      ${(sp.comments || []).length ? `<h3>Crew Notes</h3>` + sp.comments.map(c =>
+        `<div class="cmt"><b>${esc(c.by)}</b> <small>${ago(c.ts)}</small><div>${esc(c.txt)}</div></div>`
+      ).join('') : ''}
+    `);
+
+    this._stars = 0;
+    this.loadWeather(sp.lat, sp.lng);
+  },
+
+  async loadWeather(lat, lng) {
+    const box = document.getElementById('wx-box');
+    if (!box) return;
+    try {
+      const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,wind_speed_10m,wind_gusts_10m,precipitation`);
+      const j = await r.json();
+      const c = j.current;
+      const wind = Math.round(c.wind_speed_10m);
+      const gust = Math.round(c.wind_gusts_10m);
+      let cls = 'wx-safe', lbl = 'Calm / Good';
+      if (wind > 30 || gust > 45 || c.precipitation > 2) { cls = 'wx-bad'; lbl = 'Rough'; }
+      else if (wind > 18 || gust > 28) { cls = 'wx-caut'; lbl = 'Choppy'; }
+      box.innerHTML = `
+        <div>
+          <small>LIVE CONDITIONS</small>
+          <div style="font-size:14px;font-weight:700;margin-top:2px">🌡️ ${Math.round(c.temperature_2m)}°C • 💨 ${wind} km/h (gust ${gust})</div>
+        </div>
+        <span class="wx-badge ${cls}">${lbl}</span>`;
+    } catch {
+      box.innerHTML = `<div><small>CONDITIONS</small><div style="font-size:13px">Offline — check water visually before jumping</div></div><span class="wx-badge wx-caut">Offline</span>`;
+    }
+  },
+
+  _stars: 0,
+  setStar(n) {
+    this._stars = n;
+    document.querySelectorAll('#r-stars span').forEach((el, i) => el.classList.toggle('on', i < n));
+  },
+  submitRate(id) {
+    const txt = document.getElementById('r-txt').value;
+    if (!this._stars && !txt.trim()) return toast('Pick stars or write a note');
+    S.rateSpot(id, this._stars, txt);
+    toast('Thanks! +10 XP');
+    this.spot(id);
+    M.draw();
+  },
+
+  hazardPrompt(id) {
+    this.sheet(`
+      <h2>Report Hazard</h2>
+      <p><small>Keep the crew safe with live water warnings.</small></p>
+      <div style="margin-top:12px">
+        ${HAZARDS_LIST.map(h => `<button class="btn ghost" onclick="S.reportHazard('${id}','${h}');toast('Hazard added');V.spot('${id}')">${h}</button>`).join('')}
+      </div>
+      <button class="btn" onclick="V.spot('${id}')">Back</button>
+    `);
+  },
+
+  shareSpot(id) {
+    const sp = S.spot(id);
+    const txt = `${sp.name} (${S.fmtH(sp.height)}) — ${sp.lat.toFixed(5)}, ${sp.lng.toFixed(5)} on Splash Map`;
+    if (navigator.share) navigator.share({ title: sp.name, text: txt }).catch(() => {});
+    else { navigator.clipboard?.writeText(txt); toast('Spot coordinates copied!'); }
+  },
+
+  addSpot(lat, lng) {
+    this.sheet(`
+      <h2>Add Water Spot</h2>
+      <small>Pin: ${lat.toFixed(5)}, ${lng.toFixed(5)}</small>
+      <label>Spot Name</label>
+      <input id="as-name" placeholder="e.g. Shelly Bay Wharf">
+      <label>Category</label>
+      <select id="as-cat">
+        ${CATS.filter(c => c.id !== 'all').map(c => `<option value="${c.id}">${c.ico} ${c.name}</option>`).join('')}
+      </select>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label>Jump Height (m)</label><input id="as-h" type="number" step="0.5" value="4.0"></div>
+        <div><label>Water Depth (m)</label><input id="as-d" type="number" step="0.5" value="4.5"></div>
+      </div>
+      <label>Description &amp; Entry Tips</label>
+      <input id="as-desc" placeholder="Best tide, ladder exit, jump line...">
+      <label>Hazards</label>
+      ${HAZARDS_LIST.slice(0, 4).map(h => `<label class="tg ck"><input type="checkbox" class="as-hz" value="${h}"> ${h}</label>`).join('')}
+      <button class="btn" onclick="V.saveSpot(${lat},${lng})">Drop Pin (+50 XP)</button>
+    `);
+  },
+
+  saveSpot(lat, lng) {
+    const name = document.getElementById('as-name').value.trim();
+    if (!name) return toast('Enter a spot name');
+    const hazards = [...document.querySelectorAll('.as-hz:checked')].map(i => i.value);
+    const sp = {
+      id: 's' + Date.now(),
+      name,
+      cat: document.getElementById('as-cat').value,
+      lat, lng,
+      height: +document.getElementById('as-h').value || 3,
+      depth: +document.getElementById('as-d').value || 4,
+      rating: 5.0,
+      votes: 1,
+      desc: document.getElementById('as-desc').value.trim() || 'Community added spot. Always check depth first!',
+      tags: ['Community pin'],
+      hazards,
+      comments: []
+    };
+    S.addSpot(sp);
+    M.draw();
+    this.close();
+    toast('Pin dropped! +50 XP');
+    setTimeout(() => V.spot(sp.id), 300);
+  },
+
+  _sessCount: 1,
+  _dropT0: 0,
+  _dropTimer: null,
+  _photo: '',
+
+  record(spotId) {
+    this._sessCount = 1;
+    this._photo = '';
+    const sp = spotId ? S.spot(spotId) : S.d.spots[0];
+    this.sheet(`
+      <h2>Log Session 🤙</h2>
+      <label>Spot</label>
+      <select id="lg-spot">
+        ${S.d.spots.map(s => `<option value="${s.id}" ${sp && s.id === sp.id ? 'selected' : ''}>${esc(s.name)} (${S.fmtH(s.height)})</option>`).join('')}
+      </select>
+
+      <label>Style</label>
+      <select id="lg-style">
+        ${STYLES.map(st => `<option>${st}</option>`).join('')}
+      </select>
+
+      <div class="drop-box">
+        <small>FREEFALL HEIGHT ESTIMATOR (½gt²)</small>
+        <div class="big" id="lg-hval" style="font-size:36px;margin:4px 0">${sp ? sp.height.toFixed(1) : '4.0'}m</div>
+        <button class="mini on" id="drop-btn" onclick="V.toggleDrop()">⏱️ Start Freefall Timer</button>
+      </div>
+
+      <label>Session Jump Counter (tap per jump)</label>
+      <button class="tap" id="tap-cnt" onclick="V.bumpSess()">1</button>
+
+      <label>Session Note</label>
+      <input id="lg-note" placeholder="Clean pop, glassy water...">
+
+      <label>Photo (optional)</label>
+      <input type="file" accept="image/*" onchange="V.readPhoto(this)">
+
+      <button class="btn" onclick="V.submitJump()">Save &amp; Post to Feed (+XP)</button>
+    `);
+  },
+
+  bumpSess() {
+    this._sessCount++;
+    const el = document.getElementById('tap-cnt');
+    if (el) el.textContent = this._sessCount;
+  },
+
+  toggleDrop() {
+    const btn = document.getElementById('drop-btn');
+    const out = document.getElementById('lg-hval');
+    if (!this._dropT0) {
+      this._dropT0 = performance.now();
+      btn.textContent = '💦 TAP ON SPLASH!';
+      this._dropTimer = setInterval(() => {
+        const dt = (performance.now() - this._dropT0) / 1000;
+        const h = 0.5 * 9.81 * dt * dt;
+        out.textContent = `${h.toFixed(1)}m (${dt.toFixed(2)}s)`;
+      }, 30);
+    } else {
+      clearInterval(this._dropTimer);
+      const dt = (performance.now() - this._dropT0) / 1000;
+      const h = Math.min(40, Math.max(0.5, 0.5 * 9.81 * dt * dt));
+      this._dropT0 = 0;
+      out.dataset.m = h.toFixed(1);
+      out.textContent = `${S.fmtH(h)} (${(9.81 * dt * 3.6).toFixed(0)} km/h)`;
+      btn.textContent = '⏱️ Re-measure Drop';
+    }
+  },
+
+  readPhoto(inp) {
+    const file = inp.files?.[0];
+    if (!file) return;
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = e => {
+      img.onload = () => {
+        const max = 720, scale = Math.min(1, max / img.width);
+        const c = document.createElement('canvas');
+        c.width = img.width * scale;
+        c.height = img.height * scale;
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        this._photo = c.toDataURL('image/jpeg', 0.72);
+        toast('Photo ready!');
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  },
+
+  submitJump() {
+    const spotId = document.getElementById('lg-spot').value;
+    const sp = S.spot(spotId);
+    const measured = parseFloat(document.getElementById('lg-hval').dataset.m);
+    const height = measured || (sp ? sp.height : 4);
+    S.logJump({
+      spotId,
+      style: document.getElementById('lg-style').value,
+      height,
+      count: this._sessCount,
+      note: document.getElementById('lg-note').value.trim() || 'Sent a clean session!',
+      photo: this._photo
+    });
+    this.close();
+    toast(`+${this._sessCount * 15} XP logged!`);
+    go('feed');
+  },
+
+  feed() {
+    const box = document.getElementById('t-feed');
+    box.innerHTML = `<h2>Crew Feed 🔥</h2>
+      <p style="margin-bottom:14px"><small>Latest splashes, manu sessions and cliff checks.</small></p>` +
+      S.d.feed.map((f, i) => `
+        <article class="card" style="--i:${i}">
+          <div class="who">
+            <div class="av">${f.av}</div>
+            <div>
+              <b>${esc(f.who)}</b> <small>• ${ago(f.ts)}</small>
+              <small>${esc(f.spot)} • ${esc(f.style)} • ${S.fmtH(f.height)}</small>
+            </div>
+            <button class="mini" style="margin-left:auto" onclick="M.focus('${f.spotId}')">Map 📍</button>
+          </div>
+          ${f.photo ? `<img class="ph" src="${f.photo}" alt="Splash photo">` : ''}
+          <p style="margin-top:10px;line-height:1.45">${esc(f.note)}</p>
+          <div class="acts">
+            <button class="stoke ${f.stoked ? 'on' : ''}" onclick="V.stoke(this,'${f.id}')">🤙 ${f.stokes} (${f.count} jumps)</button>
+          </div>
+        </article>
+      `).join('');
+  },
+
+  stoke(btn, id) {
+    const f = S.d.feed.find(x => x.id === id);
+    if (!f) return;
+    f.stoked = !f.stoked;
+    f.stokes += f.stoked ? 1 : -1;
+    S.save();
+    btn.classList.toggle('on', f.stoked);
+    btn.textContent = `🤙 ${f.stokes} (${f.count} jumps)`;
+    if (f.stoked) {
+      for (let i = 0; i < 6; i++) {
+        const p = document.createElement('span');
+        p.className = 'p';
+        p.textContent = ['💦', '🤙', '✨'][i % 3];
+        p.style.setProperty('--x', (Math.random() * 90 - 45) + 'px');
+        p.style.setProperty('--y', (-20 - Math.random() * 50) + 'px');
+        btn.appendChild(p);
+        setTimeout(() => p.remove(), 700);
+      }
+    }
+  },
+
+  rank() {
+    const all = [...SEED_RANKS, { name: S.d.me.name + ' (You)', av: S.d.me.av, jumps: S.d.me.jumps, xp: S.d.me.xp }]
+      .sort((a, b) => b.xp - a.xp);
+    const maxXp = all[0].xp || 1;
+    const topSpots = [...S.d.spots].sort((a, b) => b.rating - a.rating).slice(0, 5);
+
+    document.getElementById('t-rank').innerHTML = `
+      <h2>Splash Ranks 🏆</h2>
+      <h3>Crew XP Leaderboard</h3>
+      ${all.map((r, i) => `
+        <div class="lb" style="--i:${i}">
+          <b>#${i + 1}</b>
+          <div>
+            <b>${r.av} ${esc(r.name)}</b>
+            <div class="bar"><u style="width:${Math.round(r.xp / maxXp * 100)}%"></u></div>
+          </div>
+          <small>${r.xp} XP</small>
+          <b>${r.jumps}</b>
+        </div>
+      `).join('')}
+
+      <h3>Top Rated Spots</h3>
+      ${topSpots.map((s, i) => `
+        <div class="lb" style="--i:${i};cursor:pointer" onclick="M.focus('${s.id}')">
+          <b>⭐</b>
+          <div><b>${esc(s.name)}</b><br><small>${S.fmtH(s.height)} • ${s.votes} ratings</small></div>
+          <small>${s.rating}</small>
+          <span>🗺️</span>
+        </div>
+      `).join('')}
+    `;
+  },
+
+  me() {
+    const m = S.d.me;
+    const lvl = Math.floor(m.xp / 200) + 1;
+    const pct = Math.min(1, m.jumps / (m.goal || 20));
+    const offset = 326.7 * (1 - pct);
+    const maxW = Math.max(1, ...m.week);
+    const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    const uStats = { jumps: m.jumps, maxH: m.maxH, added: m.added, favs: S.d.favs.length, xp: m.xp };
+
+    document.getElementById('t-me').innerHTML = `
+      <div class="ph2">
+        <div class="av">${m.av}</div>
+        <div>
+          <h2>${esc(m.name)}</h2>
+          <span class="lvl">LVL ${lvl} • ${m.xp} XP</span>
+        </div>
+      </div>
+
+      <div class="ringw">
+        <svg viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="52" fill="none" stroke="#123a60" stroke-width="10"/>
+          <circle id="ring" cx="60" cy="60" r="52" fill="none" stroke="var(--aqua)" stroke-width="10" stroke-linecap="round" stroke-dashoffset="${offset.toFixed(1)}"/>
+        </svg>
+        <div class="rc"><b>${m.jumps}</b><small>of ${m.goal} goal</small></div>
+      </div>
+
+      <div class="row3">
+        <div><small>MAX DROP</small><b>${S.fmtH(m.maxH)}</b></div>
+        <div><small>SAVED</small><b>${S.d.favs.length}</b></div>
+        <div><small>VISITED</small><b>${S.d.visited.length}</b></div>
+      </div>
+
+      <h3>This Week</h3>
+      <div class="wk">
+        ${m.week.map((v, i) => `
+          <div class="wb">
+            <i style="height:${Math.round((v / maxW) * 72)}px"></i>
+            <small>${days[i]}</small>
+          </div>
+        `).join('')}
+      </div>
+
+      <h3>Badges</h3>
+      <div class="badges">
+        ${BADGES.map(b => `<div class="bdg ${b.check(uStats) ? 'on' : ''}"><b>${b.ico}</b><small>${b.name}</small></div>`).join('')}
+      </div>
+
+      <h3>Saved Spots</h3>
+      ${S.d.favs.length ? S.d.favs.map(id => {
+        const sp = S.spot(id);
+        return sp ? `<button class="btn ghost" onclick="M.focus('${sp.id}')">📍 ${esc(sp.name)} (${S.fmtH(sp.height)})</button>` : '';
+      }).join('') : `<p class="mute">Tap ❤️ on any spot to save it for offline trips.</p>`}
+    `;
+  },
+
+  settings() {
+    const m = S.d.me;
+    this.sheet(`
+      <h2>Settings ⚙️</h2>
+      <label>Your Name</label>
+      <input id="st-name" value="${esc(m.name)}">
+      <label>Avatar</label>
+      <div class="seg">
+        ${['🐬','🦈','🐙','🦭','🐋','🤙'].map(a => `<button class="${m.av === a ? 'on' : ''}" onclick="S.d.me.av='${a}';S.save();V.settings();V.me()">${a}</button>`).join('')}
+      </div>
+      <label>Units</label>
+      <div class="seg">
+        <button class="${S.d.prefs.units === 'm' ? 'on' : ''}" onclick="S.d.prefs.units='m';S.save();V.settings()">Meters (m)</button>
+        <button class="${S.d.prefs.units === 'ft' ? 'on' : ''}" onclick="S.d.prefs.units='ft';S.save();V.settings()">Feet (ft)</button>
+      </div>
+      <label>Accent Theme</label>
+      <div class="sw">
+        ${['#00e5d0','#2ec5ff','#ffc233','#ff7eb6','#7dff8b'].map(c => `<i style="background:${c}" onclick="S.d.prefs.accent='${c}';S.applyTheme();S.save();toast('Theme updated')"></i>`).join('')}
+      </div>
+      <label>Emergency ICE Contact (for SOS)</label>
+      <input id="st-ice" placeholder="Phone number e.g. +6421..." value="${esc(m.ice || '')}">
+      <button class="btn" onclick="S.d.me.name=document.getElementById('st-name').value.trim()||'Splasher';S.d.me.ice=document.getElementById('st-ice').value.trim();S.save();V.close();V.me();toast('Saved')">Save Profile</button>
+      <button class="btn ghost" onclick="V.exportData()">📤 Export Backup JSON</button>
+      <button class="btn danger" onclick="if(confirm('Reset all local spots & logs?')){localStorage.removeItem('${KEY}');location.reload()}">Reset App Data</button>
+    `);
+  },
+
+  exportData() {
+    const blob = new Blob([JSON.stringify(S.d, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'splashmap-backup.json';
+    a.click();
+    toast('Backup exported!');
+  }
 };
