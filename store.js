@@ -1,18 +1,114 @@
-const KEY='splashmap.v2',$=s=>document.querySelector(s);
-let saved={};try{saved=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){}
-const S=Object.assign({spots:SEED.spots,acts:SEED.acts,fav:[],follow:['kaiwater'],fo:0,xp:0,streak:0,last:'',unit:'m',vib:1,accent:'#00e5d0',rate:{},crowd:{},ch:0},saved);
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Storage full, export your data')}};
+const KEY = 'splashmap_v4';
 
-const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fh=m=>S.unit==='m'?m+'m':Math.round(m*3.28)+'ft';
-const ago=t=>{const m=(Date.now()-t)/6e4;return m<1?'now':m<60?Math.round(m)+'m':m<1440?Math.round(m/60)+'h':Math.round(m/1440)+'d'};
-const dist=(a,b,c,d)=>{const r=x=>x*Math.PI/180,q=Math.sin(r(c-a)/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(r(d-b)/2)**2;return 12742*Math.asin(Math.sqrt(q))};
-const wk0=()=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-(d.getDay()+6)%7);return d.getTime()};
-const lv=()=>Math.min(5,Math.floor(S.xp/150));
-let here=null;
+const defaults = () => ({
+  spots: structuredClone(SEED_SPOTS),
+  feed: structuredClone(SEED_FEED),
+  favs: ['s1'],
+  visited: ['s1'],
+  me: {
+    name: 'Splasher',
+    av: '🐬',
+    xp: 220,
+    jumps: 12,
+    maxH: 5.5,
+    added: 0,
+    goal: 20,
+    week: [1, 3, 0, 2, 4, 1, 1], // Mon..Sun
+    ice: ''
+  },
+  prefs: {
+    accent: '#00e5d0',
+    units: 'm',
+    base: 'dark'
+  }
+});
 
-function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),2300)}
-function buzz(){if(S.vib&&navigator.vibrate)navigator.vibrate(30)}
-function sheet(h){clearInterval(V.tmr);$('#sheet').innerHTML='<div class="grab"></div>'+h;$('#sheet').classList.add('open')}
-function closeSheet(){clearInterval(V.tmr);$('#sheet').classList.remove('open')}
-function confetti(){for(let i=0;i<40;i++){const c=document.createElement('i');c.className='cf';c.style.left=Math.random()*100+'%';c.style.background=['#00e5d0','#ffc233','#ff6b3d','#2ec5ff'][i%4];c.style.animationDelay=Math.random()*.4+'s';document.body.appendChild(c);setTimeout(()=>c.remove(),2600)}}
+const S = {
+  d: null,
+  load() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      this.d = raw ? Object.assign(defaults(), JSON.parse(raw)) : defaults();
+    } catch {
+      this.d = defaults();
+    }
+    this.applyTheme();
+  },
+  save() {
+    try { localStorage.setItem(KEY, JSON.stringify(this.d)); } catch {}
+  },
+  applyTheme() {
+    document.documentElement.style.setProperty('--aqua', this.d.prefs.accent || '#00e5d0');
+  },
+  fmtH(meters) {
+    if (this.d.prefs.units === 'ft') return `${(meters * 3.28084).toFixed(1)}ft`;
+    return `${(+meters).toFixed(1)}m`;
+  },
+  spot(id) {
+    return this.d.spots.find(x => x.id === id);
+  },
+  toggleFav(id) {
+    const i = this.d.favs.indexOf(id);
+    if (i >= 0) this.d.favs.splice(i, 1); else this.d.favs.push(id);
+    this.save();
+  },
+  toggleVisited(id) {
+    const i = this.d.visited.indexOf(id);
+    if (i >= 0) this.d.visited.splice(i, 1); else this.d.visited.push(id);
+    this.save();
+  },
+  addSpot(spot) {
+    this.d.spots.unshift(spot);
+    this.d.me.added++;
+    this.d.me.xp += 50;
+    this.save();
+  },
+  logJump({ spotId, style, height, count, note, photo }) {
+    const sp = this.spot(spotId);
+    const entry = {
+      id: 'f' + Date.now(),
+      who: this.d.me.name,
+      av: this.d.me.av,
+      spotId,
+      spot: sp ? sp.name : 'Open Water',
+      style,
+      height: +height || 0,
+      count: +count || 1,
+      stokes: 1,
+      stoked: true,
+      note,
+      photo,
+      ts: Date.now()
+    };
+    this.d.feed.unshift(entry);
+    this.d.me.jumps += entry.count;
+    this.d.me.xp += entry.count * 15;
+    if (entry.height > this.d.me.maxH) this.d.me.maxH = entry.height;
+    const day = (new Date().getDay() + 6) % 7;
+    this.d.me.week[day] = (this.d.me.week[day] || 0) + entry.count;
+    if (spotId && !this.d.visited.includes(spotId)) this.d.visited.push(spotId);
+    this.save();
+    return entry;
+  },
+  rateSpot(id, stars, comment) {
+    const sp = this.spot(id);
+    if (!sp) return;
+    if (stars > 0) {
+      sp.rating = +(((sp.rating * sp.votes) + stars) / (sp.votes + 1)).toFixed(1);
+      sp.votes++;
+    }
+    if (comment && comment.trim()) {
+      sp.comments = sp.comments || [];
+      sp.comments.unshift({ by: this.d.me.name, txt: comment.trim(), ts: Date.now() });
+    }
+    this.d.me.xp += 10;
+    this.save();
+  },
+  reportHazard(id, hazard) {
+    const sp = this.spot(id);
+    if (!sp) return;
+    sp.hazards = sp.hazards || [];
+    if (!sp.hazards.includes(hazard)) sp.hazards.push(hazard);
+    this.save();
+  }
+};
