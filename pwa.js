@@ -1,29 +1,32 @@
-let deferred = null;
-const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+let deferredPrompt = null;
 
-if (standalone) $('#inst').hidden = true;
-
-addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; });
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  const btn = document.getElementById('inst');
+  if (btn) btn.hidden = false;
+});
 
 function installApp() {
-  if (deferred) { deferred.prompt(); deferred = null; return; }
-  sheet(`<h2>Install Splash Map</h2>
-    <div class="warn"><b>iPhone / iPad:</b> tap the Share button in Safari, then <b>Add to Home Screen</b>.</div>
-    <div class="warn"><b>Android / Chrome:</b> open the browser menu (⋮), then <b>Install app</b>.</div>
-    <button class="btn ghost" onclick="closeSheet()">Got it</button>`);
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.finally(() => {
+      deferredPrompt = null;
+      document.getElementById('inst').hidden = true;
+    });
+  } else {
+    toast('Use browser menu → Add to Home Screen');
+  }
 }
 
-function netState() { $('#off').hidden = navigator.onLine; }
-addEventListener('online', netState);
-addEventListener('offline', netState);
-netState();
+function syncOnline() {
+  const off = document.getElementById('off');
+  if (off) off.hidden = navigator.onLine;
+}
+window.addEventListener('online', syncOnline);
+window.addEventListener('offline', syncOnline);
+syncOnline();
 
 if ('serviceWorker' in navigator) {
-  const had = !!navigator.serviceWorker.controller;
-  navigator.serviceWorker.register('sw.js').catch(() => {});
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (had) { toast('Updated, reloading…'); setTimeout(() => location.reload(), 900); }
-  });
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
 }
-
-if (location.hash === '#log') V.record();
