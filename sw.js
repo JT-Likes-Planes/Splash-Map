@@ -1,44 +1,39 @@
-const V = 'splash-v1';
-const SHELL = ['./', 'index.html', 'style.css', 'data.js', 'store.js', 'map.js', 'views.js', 'main.js',
-  'extras.js', 'pwa.js', 'manifest.json', 'icon-192.png', 'icon-512.png'];
+const CACHE = 'splashmap-v4';
+const SHELL = [
+  './', './index.html', './style.css?v=4', './manifest.json',
+  './data.js?v=4', './store.js?v=4', './map.js?v=4',
+  './views.js?v=4', './main.js?v=4', './extras.js?v=4', './pwa.js?v=4',
+  './icon-192.png', './icon-512.png'
+];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(V).then(c => Promise.all(SHELL.map(u => c.add(u).catch(() => {})))));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL).catch(() => {})));
   self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k)))));
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))));
   self.clients.claim();
 });
 
-async function trim(cache, max) {
-  const keys = await cache.keys();
-  if (keys.length > max) await cache.delete(keys[0]);
-}
-
 self.addEventListener('fetch', e => {
-  const r = e.request;
-  if (r.method !== 'GET') return;
-  const u = new URL(r.url);
-
-  // Map tiles: cache first, so places you've viewed work offline
-  if (u.hostname.endsWith('tile.openstreetmap.org') || u.hostname.endsWith('arcgisonline.com')) {
-    e.respondWith(caches.open('tiles').then(async c => {
-      const hit = await c.match(r);
-      if (hit) return hit;
-      try { const res = await fetch(r); c.put(r, res.clone()); trim(c, 500); return res; }
-      catch (err) { return hit || Response.error(); }
-    }));
+  if (e.request.method !== 'GET') return;
+  const url = e.request.url;
+  // Network-first for weather API, cache-first with background refresh for tiles & app shell
+  if (url.includes('open-meteo.com')) {
+    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
     return;
   }
-
-  // App files and libraries: show cached copy fast, refresh in background
-  if (u.origin === location.origin || u.hostname === 'cdnjs.cloudflare.com') {
-    e.respondWith(caches.open(V).then(async c => {
-      const hit = await c.match(r, { ignoreSearch: true });
-      const net = fetch(r).then(res => { if (res.ok) c.put(r, res.clone()); return res; }).catch(() => hit);
-      return hit || net;
-    }));
-  }
+  e.respondWith(
+    caches.match(e.request).then(cached => {
+      const fetched = fetch(e.request).then(res => {
+        if (res && res.status === 200) {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+        }
+        return res;
+      }).catch(() => cached);
+      return cached || fetched;
+    })
+  );
 });
